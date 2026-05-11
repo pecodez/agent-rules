@@ -2,7 +2,7 @@
 # install.sh — Install agent rules and skills into project directories.
 #
 # Layout expected in this repo:
-#   agents/rules/*.md                  flat rule files
+#   agents/rules/*.md or *.mdc         flat rule files
 #   agents/skills/<skill>/SKILL.md     each skill is a subdirectory
 #   agents/skills/<skill>/...          (optional supporting files)
 #
@@ -107,15 +107,19 @@ install_to_project() {
     mkdir -p "$abs_project/.claude/skills"
     mkdir -p "$abs_project/.claude/commands"
     mkdir -p "$abs_project/.cursor/rules"
+    mkdir -p "$abs_project/.cursor/skills"
 
-    # Rules: flat *.md files
+    # Rules: flat *.md and *.mdc files
     if [ -d "$RULES_SRC" ]; then
-        for rule in "$RULES_SRC"/*.md; do
+        for rule in "$RULES_SRC"/*.md "$RULES_SRC"/*.mdc; do
             [ -e "$rule" ] || continue
-            name="$(basename "$rule" .md)"
-            # Claude Code slash command: invoke as /<name>
+            base="$(basename "$rule")"
+            # Strip .mdc first, then .md, to get the bare name
+            name="${base%.mdc}"
+            name="${name%.md}"
+            # Claude Code slash command: invoke as /<name> (always .md)
             relink "$rule" "$abs_project/.claude/commands/$name.md"
-            # Cursor project rule: lives in .cursor/rules/ as .mdc
+            # Cursor project rule: lives in .cursor/rules/ (always .mdc)
             relink "$rule" "$abs_project/.cursor/rules/$name.mdc"
         done
     fi
