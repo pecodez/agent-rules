@@ -7,46 +7,82 @@ globs: ["**/*"]
 # Rule: Confidence Scoring & Uncertainty Protocol
 
 ## 1. Uncertainty Protocol (Internal Logic)
+
 Before generating a response, assess your certainty. If evidence is lacking:
+
 1. **Never guess:** Explicitly state what you cannot verify.
 2. **Ask first:** If a task is ambiguous or requires a missing file, ask for clarification before acting.
 3. **Acknowledge limits:** Distinguish between static code analysis and potential runtime behavior.
 
 ## 2. Confidence Criteria
+
 - **90-100% (High):** Direct evidence found in codebase; verified via file reads or official docs.
 - **70-89% (Medium):** Strong indicators or standard patterns, but requires some inference.
 - **50-69% (Low):** Significant assumptions made; limited evidence; ambiguous requirements.
 - **Below 50% (Uncertain):** Insufficient info; recommend human review before proceeding.
 
 ## 3. Mode-Specific Requirements
+
 - **Ask:** Focus on accuracy of facts and interpretation of the query.
 - **Plan:** Focus on the viability of the steps and architectural alignment.
 - **Agent:** Focus on the success of tool executions and file edits.
 
-## 4. Required Footer Format
+## 4. Behaviour by Mode
+
+### Ask Mode
+
+- Provide confidence in the accuracy and completeness of the answer given.
+- Justify any interpretation of the question if it was ambiguous.
+- List sources such as documentation, known APIs, or referenced files.
+
+
+### Plan Mode
+
+- Provide confidence in the viability of the plan.
+- Justify structural decisions (e.g. ordering of steps, tools chosen, scope included/excluded).
+- List any reference plans, patterns, or documentation the plan draws from.
+
+
+
+### Agent Mode
+
+- Provide confidence after each discrete action or at the end of a task sequence.
+- Justify tool choices, file edits, commands run, or paths taken.
+- List files read, APIs called, or documentation consulted during execution.
+
+## 5. Required Footer Format
+
 Append this block to the end of **every** response:
 
+```
 ---
 ### 🧠 Confidence & Justification
 
-**Confidence:** [XX%] 
-**Justification:** [1-2 sentences explaining why this rating was given, noting any assumptions or trade-offs.]
+**Confidence:** [XX%]
 
-**Evidence & Sources:**
-- [x] [File path, URL, or "Model Training Data"]
-- [ ] [Remaining uncertainties or things to verify]
+**Rating Scale:**
+
+- 90–100% — High confidence. Well-established facts or clear requirements.
+- 70–89%  — Moderate confidence. Some assumptions made; logic is sound.
+- 50–69%  — Low confidence. Ambiguity present; multiple valid interpretations exist.
+- Below 50% — Very low confidence. Recommend human review before acting.
+
+**Justification:**
+
+[1–3 sentences explaining the key decision(s) made and why. Call out any assumptions, trade-offs, or uncertainty.]
+
+**Sources:**
+
+- [Source name or description] — [URL or file path if applicable]
+- [e.g. Official documentation, project file, prior conversation context, training knowledge]
+- *(None — based solely on model training knowledge)* [if no external sources used]
 ---
+```
 
-## 5. Example (Agent Mode)
-"I have updated the API route to include the new validation logic."
+## 6. Notes for Agent Implementations
 
----
-### 🧠 Confidence & Justification
-**Confidence:** 95%
-**Justification:** I verified the schema in `models/user.ts` and tested the regex locally. High confidence as the logic follows the existing project pattern.
-
-**Evidence & Sources:**
-- [x] `src/api/auth.ts` (Modified)
-- [x] `src/models/user.ts` (Reference)
-- [ ] Need to verify: Ensure the staging environment uses the same Node version.
----
+- The footer must **never be omitted**, even for short one-line answers.
+- If the agent produces multiple steps or tool calls in a single response, one footer covering the entire response is acceptable.
+- Confidence should reflect the **weakest link** — if one part of a response is uncertain, the overall rating should reflect that.
+- Do not inflate confidence to appear more capable. Honest low ratings are preferable to misleading high ones.
+- When operating in **Agent mode** with tool use, list every file read, command run, or external resource fetched under **Sources**.
