@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**agent-rules** is a shared repository of AI agent rules and skills that get symlinked into multiple project directories. It provides a single source of truth for Cursor (`.cursor/rules/`) and Claude Code (`.claude/rules/`, `.claude/skills/`) agent configurations.
+**agent-rules** is a shared repository of AI agent rules and skills that get symlinked into multiple project directories. It provides a single source of truth for Cursor (`.cursor`) and Claude Code (`.claude`) agent configurations.
 
 Licensed under MIT. Author: Phil Ewington.
 
