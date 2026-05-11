@@ -46,6 +46,17 @@ curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh
   | sh -s -- ~/code/project-a ~/code/project-b
 ```
 
+### Install into all projects under a directory
+
+Use `--recursive` to automatically find and install into every git repository one level below the given directory:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
+  | sh -s -- --recursive ~/code
+```
+
+This scans `~/code/` for immediate subdirectories containing a `.git` folder and installs into each one. Non-git directories are skipped.
+
 ### Using an environment variable
 
 ```sh
