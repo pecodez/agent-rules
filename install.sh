@@ -19,6 +19,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
 #     | sh -s -- ~/code/proj1 ~/code/proj2
 #
+#   # install into all git repos under ~/code
+#   curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
+#     | sh -s -- --recursive ~/code
+#
 #   # or via env var
 #   PROJECTS="~/code/proj1 ~/code/proj2" \
 #     curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh | sh
@@ -47,7 +51,17 @@ relink() {
     ln -s "$src" "$dest"
 }
 
-# ---- Parse target projects -----------------------------------------------
+# ---- Parse flags and target projects -------------------------------------
+RECURSIVE=false
+remaining=""
+for arg in "$@"; do
+    case "$arg" in
+        -r|--recursive) RECURSIVE=true ;;
+        *) remaining="$remaining \"$arg\"" ;;
+    esac
+done
+eval "set -- $remaining" 2>/dev/null || set --
+
 if [ "$#" -eq 0 ] && [ -n "${PROJECTS:-}" ]; then
     # shellcheck disable=SC2086
     set -- $PROJECTS
@@ -55,8 +69,12 @@ fi
 
 if [ "$#" -eq 0 ]; then
     cat >&2 <<EOF
-Usage: curl -fsSL <install.sh URL> | sh -s -- <project_dir> [project_dir ...]
-   or: PROJECTS="<dir1> <dir2>" curl -fsSL <install.sh URL> | sh
+Usage: install.sh [--recursive] <project_dir> [project_dir ...]
+   or: PROJECTS="<dir1> <dir2>" install.sh
+
+Options:
+  -r, --recursive  Find and install into all git repositories under the
+                   given directories (one level deep)
 
 Env overrides:
   REPO_URL     git URL of the rules repo
@@ -64,6 +82,31 @@ Env overrides:
   INSTALL_DIR  where the master copy lives (default: ~/.local/share/agent-rules)
 EOF
     exit 1
+fi
+
+# If --recursive, expand each argument to its child git repos
+if [ "$RECURSIVE" = true ]; then
+    expanded=""
+    for parent in "$@"; do
+        if [ ! -d "$parent" ]; then
+            warn "Skipping (not a directory): $parent"
+            continue
+        fi
+        found=false
+        for child in "$parent"/*/; do
+            [ -d "$child" ] || continue
+            [ -d "$child/.git" ] || continue
+            expanded="$expanded \"$child\""
+            found=true
+        done
+        if [ "$found" = false ]; then
+            warn "No git repositories found under $parent"
+        fi
+    done
+    if [ -z "$expanded" ]; then
+        die "No git repositories found. Nothing to install."
+    fi
+    eval "set -- $expanded"
 fi
 
 # ---- Fetch or update master copy -----------------------------------------
