@@ -2,13 +2,13 @@
 
 A curated collection of AI agent rules and skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [Cursor](https://cursor.com).
 
-Rules are defined once and symlinked into your projects. Both agents pick them up automatically through their native conventions — no manual copying.
+Rules are defined once and symlinked into your projects. Both agents pick them up through their native conventions — no manual copying.
 
 ## Getting started
 
 ### 1. Fork and customise (recommended)
 
-Fork this repository, add your own rules and skills to `agents/rules/` and `agents/skills/`, then use the installer to symlink them into your projects:
+Fork this repository, add your own rules and skills, then use the installer to symlink them into your projects:
 
 ```sh
 REPO_URL="https://github.com/yourname/agent-rules.git" \
@@ -20,7 +20,7 @@ To pull in upstream changes later, merge from the original repo into your fork u
 
 ### 2. Download and manage manually
 
-Browse the [`agents/rules/`](agents/rules) directory, download the files you want, and place them directly into your project's `.claude/rules/` or `.cursor/rules/` directory. No installer needed — but no automated updates either.
+Browse the [`agents/rules/`](agents/rules) directory, download the files you want, and place them in `.claude/content/` or `.cursor/rules/`. Update `AGENTS.md` to reference the new files. No installer needed — but no automated updates either.
 
 > **Do not add custom rules to `~/.local/share/agent-rules/`.** The installer runs `git reset --hard` on updates, which will delete any local additions.
 
@@ -30,8 +30,8 @@ The installer clones this repository to `~/.local/share/agent-rules` (configurab
 
 | Agent | Symlink target | Behaviour |
 |---|---|---|
-| **Claude Code** | `.claude/rules/<name>.md` | Auto-loaded into every session |
-| **Cursor** | `.cursor/rules/<name>.mdc` | Applied as project rules (`alwaysApply` via frontmatter) |
+| **Cursor** | `.cursor/rules/<name>.mdc` | Agent-requested rules — Cursor's agent reads the rule body to decide when to apply each rule |
+| **Claude Code** | `.claude/content/<name>.mdc` + `AGENTS.md` | Not auto-loaded — `AGENTS.md` at the project root acts as a TOC; Claude Code reads rule files on demand |
 
 Skills (multi-file directories) are symlinked to both `.claude/skills/<name>/` and `.cursor/skills/<name>/`, following the [Agent Skills](https://agentskills.io) open standard.
 
@@ -55,7 +55,17 @@ curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh
   | sh -s -- --recursive ~/code
 ```
 
-This scans `~/code/` for immediate subdirectories containing a `.git` folder and installs into each one. Non-git directories are skipped.
+### Install for one agent only
+
+```sh
+# Cursor only — skips .claude/content/ and AGENTS.md
+curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
+  | sh -s -- --cursor-only ~/code/project-a
+
+# Claude Code only — skips .cursor/rules/
+curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
+  | sh -s -- --claude-only ~/code/project-a
+```
 
 ### Using an environment variable
 
@@ -80,24 +90,6 @@ All configuration is via environment variables, set before running the installer
 | `INSTALL_DIR` | `~/.local/share/agent-rules` | Where the shared copy is stored locally |
 | `PROJECTS` | *(none)* | Space-separated list of project directories (alternative to passing as arguments) |
 
-### Examples
-
-Use a custom local directory:
-
-```sh
-INSTALL_DIR="$HOME/.agent-rules" \
-  curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
-  | sh -s -- ~/code/my-project
-```
-
-Install from a specific branch:
-
-```sh
-REPO_BRANCH="experimental" \
-  curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
-  | sh -s -- ~/code/my-project
-```
-
 ## Updating
 
 Re-run the install command. There is no separate update step — installing and updating are the same operation.
@@ -116,16 +108,19 @@ For each target project, the installer creates:
 
 ```
 your-project/
+├── AGENTS.md                         → symlink (Claude Code TOC)
 ├── .claude/
-│   ├── rules/
-│   │   ├── always-ask-agent-mode.md  → symlink
-│   │   └── confidence-rating.md      → symlink
+│   ├── content/
+│   │   ├── always-ask-agent-mode.mdc → symlink
+│   │   ├── confidence-rating.mdc     → symlink
+│   │   └── file-references.mdc       → symlink
 │   └── skills/
 │       └── <skill-name>/             → symlink (if skills exist)
 └── .cursor/
     ├── rules/
     │   ├── always-ask-agent-mode.mdc → symlink
-    │   └── confidence-rating.mdc     → symlink
+    │   ├── confidence-rating.mdc     → symlink
+    │   └── file-references.mdc       → symlink
     └── skills/
         └── <skill-name>/             → symlink (if skills exist)
 ```
@@ -138,37 +133,65 @@ Requires the agent to ask for explicit user confirmation before making any chang
 
 ### `confidence-rating`
 
-Mandates a structured confidence footer on every response with a percentage rating (High / Medium / Low / Uncertain), justification, and sources. Defines mode-specific requirements for Ask, Plan, and Agent modes.
+Mandates a structured confidence footer on every response with a percentage rating (High / Medium / Low / Uncertain), justification, and sources. Includes Cursor mode-specific requirements (Ask / Plan / Agent) and Claude Code response-type requirements.
+
+### `file-references`
+
+Specifies the correct format for citing files and line numbers. Cursor uses `file://` URI links; Claude Code uses the `path:line` shorthand recognised by IDE integrations.
 
 ## Repository structure
 
 ```
 agents/
-  rules/              *.md or *.mdc rule files
-  skills/             skill directories (each contains SKILL.md + supporting files)
-install.sh            installer script
-AGENTS.md             project documentation for AI agents
+  rules/              Shared *.mdc rule files (no frontmatter)
+  cursor/
+    rules/            Cursor-only rules or alwaysApply wrappers
+  claude/
+    rules/            Claude Code-only rules
+    AGENTS.md         TOC symlinked into target projects
+  skills/             Skill directories (each contains SKILL.md + supporting files)
+install.sh            Installer script
+AGENTS.md             Project documentation for AI agents reading this repo
 LICENSE               MIT
-README.md             this file
+README.md             This file
 ```
 
 ## Adding rules and skills (fork workflow)
 
 After forking this repo, you can add your own rules and skills.
 
-### Rules
+### Shared rules (both agents)
 
-Create a new `.mdc` file in `agents/rules/`:
+Create a `.mdc` file in `agents/rules/` with **no frontmatter**. Write conditions in the rule body:
+
+```markdown
+# My Rule
+
+Apply this rule when [condition].
+
+## Cursor: [Agent-specific section]
+If you are operating in Cursor, ...
+
+## Claude Code: [Agent-specific section]
+If you are operating as Claude Code, ...
+```
+
+Then add an entry to `agents/claude/AGENTS.md` and re-run the installer.
+
+### Cursor-only rules
+
+Create a `.mdc` file in `agents/cursor/rules/`. You may use frontmatter here if guaranteed loading is needed:
 
 ```yaml
 ---
-description: Brief description of what the rule does
-globs:
+description: Brief description of the rule
 alwaysApply: true
 ---
 ```
 
-Write the rule content in markdown below the frontmatter, then re-run the installer on your projects.
+### Claude Code-only rules
+
+Create a `.mdc` file in `agents/claude/rules/` and add an entry to `agents/claude/AGENTS.md`.
 
 ### Skills
 
@@ -186,7 +209,7 @@ Both Claude Code and Cursor get the full skill directory at `.claude/skills/<nam
 - **Updates are destructive to local changes.** The installer runs `git reset --hard` when updating, so any files added directly to the local install directory will be lost. Use a fork to maintain custom rules.
 - **POSIX sh.** The installer is written for `/bin/sh` compatibility. No Bash required.
 - **Shallow clone.** The repo is cloned with `--depth 1` by default, so full git history is not available in the local copy.
-- **`.gitignore` the symlinks.** You may want to add `.claude/` and `.cursor/rules/` to your project's `.gitignore` so the symlinks aren't committed.
+- **`.gitignore` the symlinks.** You may want to add `.claude/` and `.cursor/` to your project's `.gitignore` so the symlinks aren't committed.
 
 ## License
 
