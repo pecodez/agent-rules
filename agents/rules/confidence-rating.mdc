@@ -1,89 +1,56 @@
 # Rule: Confidence Scoring & Uncertainty Protocol
 
-Apply this rule to every response — append the structured footer.
+## 1. When to Apply
 
-## 1. Uncertainty Protocol (Internal Logic)
+Show the confidence footer when the response:
+- Proposes a plan, approach, or direction
+- Makes edits, runs commands, or modifies state
+- Recommends one option over another (even in answer to a question)
 
-Before generating a response, assess your certainty. If evidence is lacking:
+Omit the footer when the response only describes or explains existing code or behaviour (e.g. "what does this function do?", code walkthroughs, factual lookups).
+
+## 2. Uncertainty Protocol (Internal Logic)
+
+Before generating a response that requires the footer, assess your certainty:
 
 1. **Never guess:** Explicitly state what you cannot verify.
 2. **Ask first:** If a task is ambiguous or requires a missing file, ask for clarification before acting.
-3. **Acknowledge limits:** Distinguish between static code analysis and potential runtime behavior.
+3. **Acknowledge limits:** Distinguish between static code analysis and potential runtime behaviour.
+4. **Stop at <50%:** If confidence drops below 50% at any point during an agentic task, stop and ask for confirmation before continuing.
 
-## 2. Confidence Criteria
+## 3. Confidence Criteria
 
 - **90-100% (High):** Direct evidence found in codebase; verified via file reads or official docs.
 - **70-89% (Medium):** Strong indicators or standard patterns, but requires some inference.
 - **50-69% (Low):** Significant assumptions made; limited evidence; ambiguous requirements.
-- **Below 50% (Uncertain):** Insufficient info; recommend human review before proceeding.
+- **Below 50% (Uncertain):** Insufficient info; stop and ask for confirmation before proceeding.
 
-## Cursor: Mode-Specific Requirements
+Confidence should reflect the **weakest link** — if one part of a response is uncertain, the overall rating should reflect that.
 
-If you are operating in Cursor, apply confidence requirements per mode:
+## 4. Response-Type Requirements
 
-- **Ask Mode:** Focus on accuracy of facts and interpretation of the query.
-- **Plan Mode:** Focus on the viability of the steps and architectural alignment.
-- **Agent Mode:** Focus on the success of tool executions and file edits.
+### Plans and directional answers (Cursor Ask/Plan, Claude Code recommendations)
 
-### Ask Mode
+- Focus on accuracy of facts and viability of the proposed direction.
+- Justify structural decisions and any interpretation of an ambiguous question.
+- List sources: files read, docs consulted, or training knowledge used.
 
-- Provide confidence in the accuracy and completeness of the answer given.
-- Justify any interpretation of the question if it was ambiguous.
-- List sources such as documentation, known APIs, or referenced files.
+### Agentic edits and commands (Cursor Agent, Claude Code tool use)
 
-### Plan Mode
+- Provide confidence at the end of the task sequence.
+- Justify tool choices, file edits, and commands run.
+- List every file read, command run, or external resource fetched under Sources.
+- If confidence drops below 50% at any checkpoint, stop and ask for confirmation before continuing.
 
-- Provide confidence in the viability of the plan.
-- Justify structural decisions (e.g. ordering of steps, tools chosen, scope included/excluded).
-- List any reference plans, patterns, or documentation the plan draws from.
-
-### Agent Mode
-
-- Provide confidence after each discrete action or at the end of a task sequence.
-- Justify tool choices, file edits, commands run, or paths taken.
-- List files read, APIs called, or documentation consulted during execution.
-
-## Claude Code: Response-Type Requirements
-
-If you are operating as Claude Code, apply confidence requirements per response type:
-
-- **Answering a question:** Focus on accuracy of facts; cite files read or docs consulted.
-- **Making edits or running commands:** Provide confidence after each discrete action or at the end of a task sequence; justify tool choices and file edits; list files read and commands run.
-- **Multi-step tasks:** Rate confidence at each checkpoint; flag the weakest step explicitly.
-
-## 3. Required Footer Format
-
-Append this block to the end of **every** response:
+## 5. Required Footer Format
 
 ```
 ---
-### 🧠 Confidence & Justification
-
-**Confidence:** [XX%]
-
-**Rating Scale:**
-
-- 90–100% — High confidence. Well-established facts or clear requirements.
-- 70–89%  — Moderate confidence. Some assumptions made; logic is sound.
-- 50–69%  — Low confidence. Ambiguity present; multiple valid interpretations exist.
-- Below 50% — Very low confidence. Recommend human review before acting.
-
-**Justification:**
-
-[1–3 sentences explaining the key decision(s) made and why. Call out any assumptions, trade-offs, or uncertainty.]
-
-**Sources:**
-
-- [Source name or description] — [URL or file path if applicable]
-- [e.g. Official documentation, project file, prior conversation context, training knowledge]
-- *(None — based solely on model training knowledge)* [if no external sources used]
+**Confidence:** [XX%] ([High/Medium/Low/Uncertain]) — [1–2 sentence justification. Sources: list files read, commands run, or note if training knowledge only.]
 ---
 ```
 
-## 4. Notes
+## 6. Notes
 
-- The footer must **never be omitted**, even for short one-line answers.
-- If the agent produces multiple steps or tool calls in a single response, one footer covering the entire response is acceptable.
-- Confidence should reflect the **weakest link** — if one part of a response is uncertain, the overall rating should reflect that.
 - Do not inflate confidence to appear more capable. Honest low ratings are preferable to misleading high ones.
-- When making edits with tool use, list every file read, command run, or external resource fetched under **Sources**.
+- If the agent produces multiple steps or tool calls in a single response, one footer covering the entire response is acceptable.
