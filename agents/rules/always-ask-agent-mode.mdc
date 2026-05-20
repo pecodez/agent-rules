@@ -1,9 +1,3 @@
----
-description: Require explicit user confirmation before making any changes, especially during review or clarification in agent mode
-globs:
-alwaysApply: true
----
-
 # Always Ask Before Making Changes
 
 ## Rule

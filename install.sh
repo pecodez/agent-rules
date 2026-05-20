@@ -2,15 +2,21 @@
 # install.sh — Install agent rules and skills into project directories.
 #
 # Layout expected in this repo:
-#   agents/rules/*.md or *.mdc         flat rule files
-#   agents/skills/<skill>/SKILL.md     each skill is a subdirectory
-#   agents/skills/<skill>/...          (optional supporting files)
+#   agents/rules/*.mdc              shared rules (no frontmatter; Cursor + Claude Code)
+#   agents/cursor/rules/*.mdc       Cursor-only rules or alwaysApply wrappers
+#   agents/claude/rules/*.mdc       Claude Code-only rules
+#   agents/claude/AGENTS.md         TOC symlinked as AGENTS.md in target projects
+#   agents/skills/<skill>/SKILL.md  each skill is a subdirectory
 #
 # What this does for every target project:
-#   .claude/rules/<rule>.md            → symlink (Claude Code auto-loaded rule)
+#   .cursor/rules/<rule>.mdc           → symlink (shared + cursor-only rules)
+#   .claude/content/<rule>.mdc         → symlink (shared + claude-only rules)
+#   AGENTS.md                          → symlink to agents/claude/AGENTS.md
 #   .claude/skills/<skill>/            → symlink to the whole skill dir
-#   .cursor/rules/<rule>.mdc           → symlink (Cursor project rule)
 #   .cursor/skills/<skill>/            → symlink to the whole skill dir
+#
+# Rules in .claude/content/ are NOT auto-loaded; AGENTS.md is the TOC that
+# directs Claude Code to read them on demand.
 #
 # The master copy is cloned/updated under ~/.local/share/agent-rules so all
 # projects share one source of truth — pull the repo to update everywhere.
@@ -22,6 +28,10 @@
 #   # install into all git repos under ~/code
 #   curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
 #     | sh -s -- --recursive ~/code
+#
+#   # cursor only
+#   curl -fsSL https://raw.githubusercontent.com/pecodez/agent-rules/main/install.sh \
+#     | sh -s -- --cursor-only ~/code/proj1
 #
 #   # or via env var
 #   PROJECTS="~/code/proj1 ~/code/proj2" \
@@ -53,14 +63,22 @@ relink() {
 
 # ---- Parse flags and target projects -------------------------------------
 RECURSIVE=false
+CURSOR_ONLY=false
+CLAUDE_ONLY=false
 remaining=""
 for arg in "$@"; do
     case "$arg" in
-        -r|--recursive) RECURSIVE=true ;;
+        -r|--recursive)   RECURSIVE=true ;;
+        --cursor-only)    CURSOR_ONLY=true ;;
+        --claude-only)    CLAUDE_ONLY=true ;;
         *) remaining="$remaining \"$arg\"" ;;
     esac
 done
 eval "set -- $remaining" 2>/dev/null || set --
+
+if [ "$CURSOR_ONLY" = true ] && [ "$CLAUDE_ONLY" = true ]; then
+    die "--cursor-only and --claude-only are mutually exclusive."
+fi
 
 if [ "$#" -eq 0 ] && [ -n "${PROJECTS:-}" ]; then
     # shellcheck disable=SC2086
@@ -69,12 +87,14 @@ fi
 
 if [ "$#" -eq 0 ]; then
     cat >&2 <<EOF
-Usage: install.sh [--recursive] <project_dir> [project_dir ...]
+Usage: install.sh [--recursive] [--cursor-only|--claude-only] <project_dir> [project_dir ...]
    or: PROJECTS="<dir1> <dir2>" install.sh
 
 Options:
   -r, --recursive  Find and install into all git repositories under the
                    given directories (one level deep)
+  --cursor-only    Install Cursor rules only (skip Claude Code content)
+  --claude-only    Install Claude Code content only (skip Cursor rules)
 
 Env overrides:
   REPO_URL     git URL of the rules repo
@@ -130,9 +150,11 @@ else
 fi
 
 RULES_SRC="$INSTALL_DIR/agents/rules"
+CURSOR_SRC="$INSTALL_DIR/agents/cursor/rules"
+CLAUDE_SRC="$INSTALL_DIR/agents/claude"
 SKILLS_SRC="$INSTALL_DIR/agents/skills"
 
-[ -d "$RULES_SRC" ]  || warn "No rules dir at $RULES_SRC (skipping rules)"
+[ -d "$RULES_SRC" ]  || warn "No shared rules dir at $RULES_SRC (skipping shared rules)"
 [ -d "$SKILLS_SRC" ] || warn "No skills dir at $SKILLS_SRC (skipping skills)"
 
 # ---- Install into each target --------------------------------------------
@@ -147,43 +169,67 @@ install_to_project() {
     abs_project="$(cd "$project" && pwd -P)"
     log "Installing into $abs_project"
 
-    mkdir -p "$abs_project/.claude/skills"
-    mkdir -p "$abs_project/.claude/rules"
-    mkdir -p "$abs_project/.cursor/rules"
-    mkdir -p "$abs_project/.cursor/skills"
-
-    # Rules: flat *.md and *.mdc files
-    if [ -d "$RULES_SRC" ]; then
-        for rule in "$RULES_SRC"/*.md "$RULES_SRC"/*.mdc; do
-            [ -e "$rule" ] || continue
-            base="$(basename "$rule")"
-            # Strip .mdc first, then .md, to get the bare name
-            name="${base%.mdc}"
-            name="${name%.md}"
-            # Claude Code rule: auto-loaded into every session (always .md)
-            relink "$rule" "$abs_project/.claude/rules/$name.md"
-            # Cursor project rule: lives in .cursor/rules/ (always .mdc)
-            relink "$rule" "$abs_project/.cursor/rules/$name.mdc"
-        done
+    # --- Cursor rules ---
+    if [ "$CLAUDE_ONLY" = false ]; then
+        mkdir -p "$abs_project/.cursor/rules"
+        # Shared rules
+        if [ -d "$RULES_SRC" ]; then
+            for rule in "$RULES_SRC"/*.mdc; do
+                [ -e "$rule" ] || continue
+                relink "$rule" "$abs_project/.cursor/rules/$(basename "$rule")"
+            done
+        fi
+        # Cursor-only rules and alwaysApply wrappers
+        if [ -d "$CURSOR_SRC" ]; then
+            for rule in "$CURSOR_SRC"/*.mdc; do
+                [ -e "$rule" ] || continue
+                relink "$rule" "$abs_project/.cursor/rules/$(basename "$rule")"
+            done
+        fi
     fi
 
-    # Skills: each is a subdirectory containing SKILL.md
+    # --- Claude Code content ---
+    # Rules go to .claude/content/ (not .claude/rules/) so they are not
+    # auto-loaded. AGENTS.md at the project root acts as the TOC.
+    if [ "$CURSOR_ONLY" = false ]; then
+        mkdir -p "$abs_project/.claude/content"
+        # Shared rules
+        if [ -d "$RULES_SRC" ]; then
+            for rule in "$RULES_SRC"/*.mdc; do
+                [ -e "$rule" ] || continue
+                relink "$rule" "$abs_project/.claude/content/$(basename "$rule")"
+            done
+        fi
+        # Claude Code-only rules
+        if [ -d "$CLAUDE_SRC/rules" ]; then
+            for rule in "$CLAUDE_SRC/rules"/*.mdc; do
+                [ -e "$rule" ] || continue
+                relink "$rule" "$abs_project/.claude/content/$(basename "$rule")"
+            done
+        fi
+        # AGENTS.md TOC
+        relink "$CLAUDE_SRC/AGENTS.md" "$abs_project/AGENTS.md"
+    fi
+
+    # --- Skills (both agents) ---
     if [ -d "$SKILLS_SRC" ]; then
+        mkdir -p "$abs_project/.claude/skills"
+        mkdir -p "$abs_project/.cursor/skills"
         for skill_dir in "$SKILLS_SRC"/*/; do
             [ -d "$skill_dir" ] || continue
             skill_name="$(basename "$skill_dir")"
             skill_path="${skill_dir%/}"
 
-            # Claude Code: full skill directory at .claude/skills/<name>/
-            relink "$skill_path" "$abs_project/.claude/skills/$skill_name"
-
-            # Cursor: full skill directory at .cursor/skills/<name>/
-            relink "$skill_path" "$abs_project/.cursor/skills/$skill_name"
+            if [ "$CURSOR_ONLY" = false ]; then
+                relink "$skill_path" "$abs_project/.claude/skills/$skill_name"
+            fi
+            if [ "$CLAUDE_ONLY" = false ]; then
+                relink "$skill_path" "$abs_project/.cursor/skills/$skill_name"
+            fi
         done
     fi
 
-    printf '    linked into %s/.claude and %s/.cursor\n' \
-           "$abs_project" "$abs_project"
+    printf '    linked into %s\n' "$abs_project"
 }
 
 for project in "$@"; do

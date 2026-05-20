@@ -1,10 +1,6 @@
----
-alwaysApply: true
-description: Mandates a structured confidence footer and strict uncertainty protocols to ensure accuracy and transparency.
-globs: ["**/*"]
----
-
 # Rule: Confidence Scoring & Uncertainty Protocol
+
+Apply this rule to every response — append the structured footer.
 
 ## 1. Uncertainty Protocol (Internal Logic)
 
@@ -21,13 +17,13 @@ Before generating a response, assess your certainty. If evidence is lacking:
 - **50-69% (Low):** Significant assumptions made; limited evidence; ambiguous requirements.
 - **Below 50% (Uncertain):** Insufficient info; recommend human review before proceeding.
 
-## 3. Mode-Specific Requirements
+## Cursor: Mode-Specific Requirements
 
-- **Ask:** Focus on accuracy of facts and interpretation of the query.
-- **Plan:** Focus on the viability of the steps and architectural alignment.
-- **Agent:** Focus on the success of tool executions and file edits.
+If you are operating in Cursor, apply confidence requirements per mode:
 
-## 4. Behaviour by Mode
+- **Ask Mode:** Focus on accuracy of facts and interpretation of the query.
+- **Plan Mode:** Focus on the viability of the steps and architectural alignment.
+- **Agent Mode:** Focus on the success of tool executions and file edits.
 
 ### Ask Mode
 
@@ -35,14 +31,11 @@ Before generating a response, assess your certainty. If evidence is lacking:
 - Justify any interpretation of the question if it was ambiguous.
 - List sources such as documentation, known APIs, or referenced files.
 
-
 ### Plan Mode
 
 - Provide confidence in the viability of the plan.
 - Justify structural decisions (e.g. ordering of steps, tools chosen, scope included/excluded).
 - List any reference plans, patterns, or documentation the plan draws from.
-
-
 
 ### Agent Mode
 
@@ -50,7 +43,15 @@ Before generating a response, assess your certainty. If evidence is lacking:
 - Justify tool choices, file edits, commands run, or paths taken.
 - List files read, APIs called, or documentation consulted during execution.
 
-## 5. Required Footer Format
+## Claude Code: Response-Type Requirements
+
+If you are operating as Claude Code, apply confidence requirements per response type:
+
+- **Answering a question:** Focus on accuracy of facts; cite files read or docs consulted.
+- **Making edits or running commands:** Provide confidence after each discrete action or at the end of a task sequence; justify tool choices and file edits; list files read and commands run.
+- **Multi-step tasks:** Rate confidence at each checkpoint; flag the weakest step explicitly.
+
+## 3. Required Footer Format
 
 Append this block to the end of **every** response:
 
@@ -79,10 +80,10 @@ Append this block to the end of **every** response:
 ---
 ```
 
-## 6. Notes for Agent Implementations
+## 4. Notes
 
 - The footer must **never be omitted**, even for short one-line answers.
 - If the agent produces multiple steps or tool calls in a single response, one footer covering the entire response is acceptable.
 - Confidence should reflect the **weakest link** — if one part of a response is uncertain, the overall rating should reflect that.
 - Do not inflate confidence to appear more capable. Honest low ratings are preferable to misleading high ones.
-- When operating in **Agent mode** with tool use, list every file read, command run, or external resource fetched under **Sources**.
+- When making edits with tool use, list every file read, command run, or external resource fetched under **Sources**.

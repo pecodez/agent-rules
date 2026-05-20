@@ -1,0 +1,33 @@
+# File References
+
+Apply this format whenever you cite a specific file, function, or line number.
+
+## Cursor: File Reference Format
+
+Use `file://` URIs with absolute paths:
+
+- Single line: `[filename:line](file:///absolute/path/to/file#Lline)`
+- Line range: `[filename:start-end](file:///absolute/path/to/file#Lstart-Lend)`
+
+Examples:
+- `[issues.ts:271](file:///home/username/project/lib/issues.ts#L271)`
+- `[issues.ts:271-278](file:///home/username/project/lib/issues.ts#L271-L278)`
+- `[in-graph.ts:152-160](file:///home/username/project/lib/find/in-graph.ts#L152-L160)`
+
+The path must be absolute and start with `file:///`. Do not use shell variables (e.g. `$HOME`) — these do not expand in markdown links.
+
+## Claude Code: File Reference Format
+
+Use the `path:line` shorthand with absolute paths, which Claude Code's IDE integrations recognise for navigation:
+
+- Single line: `/home/username/project/src/lib/issues.ts:271`
+- Line range: `/home/username/project/src/lib/issues.ts:271-278`
+
+## When to apply
+
+Apply this format whenever you:
+
+- Show a code snippet and cite where it came from
+- Explain logic that spans multiple files
+- Reference a specific function, type, or variable
+- List files in a "Key Points" or summary section
